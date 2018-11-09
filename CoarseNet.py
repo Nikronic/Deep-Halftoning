@@ -61,6 +61,19 @@ class U_Net(nn.Module):
         self.last_layer = nn.Conv2d(new_in_channels, output_channels, kernel_size=1)   
         
         
+        def forward(self, x):
+            layers = []
+            for i,downconv in enumerate(self.contracting_path):
+                if i != len(self.contracting_path)-1: # add pooling to last layer
+                    x = downconv(x)
+                    layers.append(x)
+                    x = f.max_pool2d(x, kernel_size=2, stride=2)
+            
+            for i, upconv in enumerate(self.expansive_path):
+                pass
+            
+            
+        
 class DownConvolution(nn.Module):
     def __init__(self, input_channel, output_channel):
         """
@@ -89,8 +102,35 @@ class DownConvolution(nn.Module):
         
     
     
+class UpConvolution(nn.Module):
+    def __init__(self, input_channel, output_channel):
+        """
+        A 2x2 convolution which concatenate with cropped features from contracting phase, and two 3x3 convolution,
+        each followed by a rectified linear unit (ReLU).
+        
+        Args:
+            **input_channel**: Input size of layer
+            
+            **output_channel**: Output size of layer
+        
+        """
+        
+        super(UpConvolution, self).__init__()
+        
+        
+        self.top_layer = nn.Sequential(nn.Conv2d(input_channel, output_channel, kernel_size=2))
+        self.conv = DownConvolution(input_channel, output_channel)
+        
+    def crop(self, layer, target_size):
+        _, _, layer_height, layer_width = layer.size()
+        diff_y = (layer_height - target_size[0]) // 2
+        diff_x = (layer_width - target_size[1]) // 2
+        return layer[:, :, diff_y:(diff_y + target_size[0]), diff_x:(diff_x + target_size[1])]
     
-    
+    def forward(self, x, layer_map):
+        layer = self.top_layer(x)
+        layer = self.conv(layer = torch.cat([layer, self.crop(layer_map, layer.shape[2:])], 1))
+        return layer
     
     
     
