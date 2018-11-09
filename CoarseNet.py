@@ -11,7 +11,6 @@ import torch
 from torch import nn
 import torch.nn.functional as f
 
-
 class U_Net(nn.Module):
     def __init__(self, input_channels=1, output_channels=2, depth=5, number_of_filters=64):
         """
@@ -61,16 +60,18 @@ class U_Net(nn.Module):
         self.last_layer = nn.Conv2d(new_in_channels, output_channels, kernel_size=1)   
         
         
-        def forward(self, x):
-            layers = []
-            for i,downconv in enumerate(self.contracting_path):
-                if i != len(self.contracting_path)-1: # add pooling to last layer
-                    x = downconv(x)
-                    layers.append(x)
-                    x = f.max_pool2d(x, kernel_size=2, stride=2)
-            
-            for i, upconv in enumerate(self.expansive_path):
-                pass
+    def forward(self, x):
+        layers = []
+        for i,downconv in enumerate(self.contracting_path):
+            if i != len(self.contracting_path)-1: # add pooling to last layer
+                x = downconv(x)
+                layers.append(x)
+                x = f.max_pool2d(x, kernel_size=2, stride=2)
+        
+        for i, upconv in enumerate(self.expansive_path):
+            x = upconv(x, layers[-i-1])
+        
+        return self.last_layer(x)
             
             
         
@@ -132,18 +133,10 @@ class UpConvolution(nn.Module):
         layer = self.conv(layer = torch.cat([layer, self.crop(layer_map, layer.shape[2:])], 1))
         return layer
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-            
+from torch.autograd import Variable
+import numpy as np
+model = U_Net()
+x = Variable(torch.FloatTensor(np.random.random((1, 3, 320, 320))))
+out = model(x)
+
+
