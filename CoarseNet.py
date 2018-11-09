@@ -47,7 +47,7 @@ class U_Net(nn.Module):
         
         # Filling pathes with correspoding layers.
         for i in range(depth):
-            self.contracting_path.append(DownConvOlution(new_in_channels, new_out_channels))
+            self.contracting_path.append(DownConvolution(new_in_channels, new_out_channels))
             new_in_channels = new_out_channels
             new_out_channels = new_out_channels*2
         
@@ -61,4 +61,49 @@ class U_Net(nn.Module):
         self.last_layer = nn.Conv2d(new_in_channels, output_channels, kernel_size=1)   
         
         
+class DownConvolution(nn.Module):
+    def __init__(self, input_channel, output_channel):
+        """
+        This class provide two 3x3 convolutions (unpadded) each followed by a rectified linear unit (ReLU).
+        
+        Args:
+            **input_channel**: Input size of layer
+            
+            **output_channel**: Output size of layer
+        
+        """
+        
+        super(DownConvolution, self).__init__()
+        
+        layer = []
+        layer.append(nn.Conv2d(input_channel, output_channel, kernel_size=3))
+        layer.append(nn.ReLU())
+        
+        layer.append(nn.Conv2d(input_channel, output_channel, kernel_size=3))
+        layer.append(nn.ReLU())
+        
+        self.layer = nn.Sequential(*layer) # hold the order
+        
+    def forward(self, x):
+        return self.layer(x)
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
             
