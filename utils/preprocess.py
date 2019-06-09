@@ -109,11 +109,11 @@ class PlacesDataset(Dataset):
 
         if self.transform is not None:
             x = self.transform(x)
-            y_descreen = self.transform(y_descreen)  # TODO I think I have to remove some of transforms from LABEL
+            y_descreen = self.transform(y_descreen)  # TODO I think I have to use the all transform except RandomNoise
 
         # generate edge-map
         y_edge = self.canny_edge_detector(y_descreen)
-        y_edge = self.to_tensor(y_edge)
+        y_edge = self.to_tensor(y_edge)  # TODO I think I have to use the all transform except RandomNoise and Normalize
 
         sample = {'x': x,
                   'y_descreen': y_descreen,

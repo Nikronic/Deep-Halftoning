@@ -90,7 +90,7 @@ class CoarseNet(nn.Module):
         self.ce5 = CE(64, 64, kernel_size=3, stride=1, padding=1)
 
         # final
-        self.final = C(64, self.output_channels, kernel_size=3, stride=1, padding=1)
+        self.final = C(64, self.output_channels, kernel_size=3, stride=1, padding=1, activation=None)
 
     def forward(self, x):
         out = self.cl0(x)  # 3>64
