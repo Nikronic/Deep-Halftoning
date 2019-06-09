@@ -3,10 +3,12 @@ from PIL import Image
 from torchvision.transforms import ToTensor, ToPILImage
 import random
 
+import numpy as np
 import tarfile
 import io
 import os
 import pandas as pd
+from skimage import feature, color
 
 from torch.utils.data import Dataset
 import torch
@@ -59,6 +61,23 @@ class PlacesDataset(Dataset):
         image = Image.open(os.path.join(self.img_dir, name))
         return image
 
+    def canny_edge_detector(self, image):
+        """
+        Returns a binary image with same size of source image which each pixel determines belonging to an edge or not.
+
+        :param image: PIL image
+        :return: Binary numpy array
+        """
+        if type(image) == torch.Tensor:
+            image = self.to_pil(image)
+        image = image.convert(mode='L')
+        image = np.array(image)
+        edges = feature.canny(image, sigma=1)  # TODO: the sigma hyper parameter value is not defined in the paper.
+        size = edges.shape[::-1]
+        data_bytes = np.packbits(edges, axis=1)
+        edges = Image.frombytes(mode='1', size=size, data=data_bytes)
+        return edges
+
     def __len__(self):
         """
         Return the length of data set using list of IDs
@@ -90,10 +109,15 @@ class PlacesDataset(Dataset):
 
         if self.transform is not None:
             x = self.transform(x)
-            y_descreen = self.transform(y_descreen)
+            y_descreen = self.transform(y_descreen)  # TODO I think I have to remove some of transforms from LABEL
+
+        # generate edge-map
+        y_edge = self.canny_edge_detector(y_descreen)
+        y_edge = self.to_tensor(y_edge)
 
         sample = {'x': x,
-                  'y_descreen': y_descreen}
+                  'y_descreen': y_descreen,
+                  'y_edge': y_edge}
 
         return sample
 
