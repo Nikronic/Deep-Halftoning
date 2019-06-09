@@ -41,6 +41,26 @@ class CBL(nn.Module):
         return self.layers(x)
 
 
+class CBR(nn.Module):
+    def __init__(self, input_channel, output_channel, kernel_size, stride, padding):
+        """
+        It consists of the 5x5 convolutions with stride=1, padding=2, and a batch normalization, followed by
+        a rectified linear unit (ReLU)
+
+        :param input_channel: input channel size
+        :param output_channel: output channel size
+        """
+        assert (input_channel > 0 and output_channel > 0)
+
+        super(CBR, self).__init__()
+        layers = [nn.Conv2d(input_channel, output_channel, kernel_size=kernel_size, stride=stride, padding=padding),
+                  nn.BatchNorm2d(num_features=output_channel), nn.ReLU(inplace=True)]
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.layers(x)
+
+
 class CE(nn.Module):
     def __init__(self, input_channel, output_channel, kernel_size, stride, padding):
         """
@@ -63,7 +83,7 @@ class CE(nn.Module):
 
 
 class C(nn.Module):
-    def __init__(self, input_channel, output_channel, kernel_size, stride, padding):
+    def __init__(self, input_channel, output_channel, kernel_size, stride, padding, activation=None):
         """
         At the final layer, a 3x3 convolution is used to map each 64-component feature vector to the desired
         number of classes.
@@ -72,7 +92,16 @@ class C(nn.Module):
         :param output_channel: output channel size
         """
         super(C, self).__init__()
-        self.layer = nn.Conv2d(input_channel, output_channel, kernel_size=kernel_size, stride=stride, padding=padding)
+        if activation == 'sigmoid':
+            self.layer = nn.Sequential(
+                [nn.Conv2d(input_channel, output_channel, kernel_size=kernel_size, stride=stride, padding=padding),
+                 nn.Sigmoid()])
+        elif activation == 'tanh':
+            self.layer = nn.Sequential(
+                [nn.Conv2d(input_channel, output_channel, kernel_size=kernel_size, stride=stride, padding=padding),
+                 nn.Tanh()])
+        else:
+            self.layer = nn.Conv2d(input_channel, output_channel, kernel_size=kernel_size, stride=stride, padding=padding)
 
     def forward(self, x):
         return self.layer(x)
