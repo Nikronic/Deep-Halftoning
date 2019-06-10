@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 from PIL import Image
-from torchvision.transforms import ToTensor, ToPILImage
+from torchvision.transforms import ToTensor, ToPILImage, Compose
 import random
 
 import numpy as np
@@ -37,6 +37,9 @@ class PlacesDataset(Dataset):
         self.to_pil = ToPILImage()
         self.get_image_selector = True if img_dir.__contains__('tar') else False
         self.tf = tarfile.open(self.img_dir) if self.get_image_selector else None
+
+        # we need to apply a subset of transform to our target images or labels
+        self.transform_gt = Compose(self.transform.transforms[:-1])  # we do not want noise in ground-truth images
 
     def get_image_from_tar(self, name):
         """
@@ -107,13 +110,20 @@ class PlacesDataset(Dataset):
         # generate halftone image
         x = generate_halftone(y_descreen)
 
+        # https://github.com/pytorch/vision/issues/9#issuecomment-304224800
+        # Solution to apply same transforms for input and target images
+
+        seed = np.random.randint(2147483647)
+        random.seed(seed)
+
         if self.transform is not None:
             x = self.transform(x)
-            y_descreen = self.transform(y_descreen)  # TODO I think I have to use the all transform except RandomNoise
+            random.seed(seed)
+            y_descreen = self.transform_gt(y_descreen)
 
         # generate edge-map
         y_edge = self.canny_edge_detector(y_descreen)
-        y_edge = self.to_tensor(y_edge)  # TODO I think I have to use the all transform except RandomNoise and Normalize
+        y_edge = self.to_tensor(y_edge)
 
         sample = {'x': x,
                   'y_descreen': y_descreen,
