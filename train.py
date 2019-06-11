@@ -122,7 +122,7 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
     """
     Train model
 
-    :param networks: Parameters of defined neural networks
+    :param network: Parameters of defined neural networks
     :param data_loader: A data loader object defined on train data set
     :param epochs: Number of epochs to train model
     :param optimizer: Optimizer to train network
@@ -130,27 +130,61 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
     :return: None
     """
 
-    net.train()
-    for epoch in range(epochs):  # loop over the dataset multiple times
+    # Models
+    coarse_net = network['coarse'].train()
+    edge_net = network['edge'].train()
+    object_net = network['object'].eval()
+    details_net = network['details'].train()
+    disc_one = network['disc1'].train()
+    disc_two = network['disc2'].train()
+
+    # Losses
+    coarse_loss = criterion['coarse']
+    edge_loss = criterion['edge']
+    details_loss = criterion['details']
+
+    # Optims
+    coarse_optim = optimizer['coarse']
+    edge_optim = optimizer['edge']
+    details_optim = optimizer['details']
+    disc_one_optim = optimizer['disc1']
+    disc_two_optim = optimizer['disc2']
+
+    for epoch in range(epochs):
 
         running_loss = 0.0
         for i, data in enumerate(data_loader, 0):
-            # get the inputs
-            X = data['X']
+            x = data['x']
             y_d = data['y_descreen']
+            y_e = data['y_edge']
 
-            X = X.to(device)
+            x = x.to(device)
             y_d = y_d.to(device)
 
-            optimizer.zero_grad()
+            coarse_optim.zero_grad()
+            edge_optim.zero_grad()
 
-            outputs = net(X)
-            loss = criterion(outputs, y_d)
-            loss.backward()
-            optimizer.step()
+            coarse_outputs = coarse_net(x)
+            edge_outputs = edge_net(x)
+            # we have to pass images as dictionary if we do not want to change source code of ObjectNet
+            object_inputs = object_net({'img_data': coarse_outputs})
+            seg_size = (coarse_outputs.size())
+            seg_size = (seg_size[2], seg_size[3])
+            object_outputs = object_net(object_inputs, segSize=seg_size)
 
-            running_loss += loss.item()
-            print(epoch + 1, ',', i + 1, 'loss:', running_loss)
+
+            coarse_loss_ = coarse_loss(coarse_outputs, y_d)
+            edge_loss_ = edge_loss(edge_outputs, y_e.float())
+
+            coarse_loss_.backward()
+            edge_loss_.backward()
+
+            coarse_optim.step()
+            edge_optim.step()
+
+            running_loss += coarse_loss_.item() + edge_loss_.item()
+            print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss_.item(),
+                  'edge_loss: ', edge_loss_, 'details_loss: ', details_loss_, 'sum of losses:', running_loss)
     print('Finished Training')
 
 
@@ -230,8 +264,8 @@ net_decoder = builder.build_decoder(
     num_class=150,
     weights=os.path.join('pretrained/baseline-resnet101dilated-ppm_deepsup', 'decoder' + '_epoch_25.pth'),
     use_softmax=True)
-segmentation_module = SegmentationModule(net_encoder, net_decoder, None)
-segmentation_module.cuda()
+object_net = SegmentationModule(net_encoder, net_decoder, None)
+object_net.cuda()
 
 # DetailsNet
 details_loss = DetailsLoss().to(device)
@@ -254,7 +288,7 @@ disc_two.apply(init_weights)
 models = {
     'coarse': coarse_net,
     'edge': edge_net,
-    'object': segmentation_module,
+    'object': object_net,
     'details': details_net,
     'disc1': disc_one,
     'disc2': disc_two
@@ -276,5 +310,3 @@ optims = {
 
 
 train_model(network=models, data_loader=train_loader, optimizer=optims, criterion=losses, epochs=args.es)
-
-
