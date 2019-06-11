@@ -8,7 +8,7 @@ import tarfile
 import io
 import os
 import pandas as pd
-from skimage import feature, color
+from skimage import feature
 
 from torch.utils.data import Dataset
 import torch
@@ -99,7 +99,8 @@ class PlacesDataset(Dataset):
         :return: a sample of data as a dict
         """
 
-        if index == (self.__len__() - 1) and self.get_image_selector:  # close tarfile opened in __init__
+        # close tarfile opened in __init__
+        if index == (self.__len__() - 1) and self.get_image_selector:
             self.tf.close()
 
         if self.get_image_selector:  # note: we prefer to extract then process!
