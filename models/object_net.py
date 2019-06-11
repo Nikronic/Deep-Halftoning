@@ -44,6 +44,8 @@ class SegmentationModule(SegmentationModuleBase):
         # inference
         else:
             pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
+
+            # TODO merge similar categories to get only 25 type of scenes. (currently 150)
             return pred
 
 
