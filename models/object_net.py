@@ -4,6 +4,9 @@ import torchvision
 from . import resnet
 from lib.nn import SynchronizedBatchNorm2d
 
+import pandas as pd
+import numpy as np
+
 
 class SegmentationModuleBase(nn.Module):
     def __init__(self):
@@ -26,6 +29,33 @@ class SegmentationModule(SegmentationModuleBase):
         self.crit = crit
         self.deep_sup_scale = deep_sup_scale
 
+    @staticmethod
+    def merge_segments(pred, csv_path=None):
+        """
+        Merge different segments into one based on a .csv file containing source and target indexes.
+
+        :param pred: The probability matrix of assignment of classes to pixels of size (batch, classes, height, width)
+        :param csv_path: A csv file to obtain source and target indexes
+        :return: A class representation of the input matrix using Max function of size (batch, height, width)
+        """
+        if csv_path is None:
+            csv_path = 'data/object25_info.csv'
+        csv = pd.read_csv(csv_path, header=None)
+        source = csv.values[:, 0] - 1
+        target = csv.values[:, 1]
+        for i, d in enumerate(target):
+            if type(d) == str:
+                target[i] = np.array([int(x) for x in d.split(' ')])
+            else:
+                target[i] = np.array([])
+        target = target - 1
+
+        for i, src in enumerate(source):
+            tgt = target[i]
+            st = {t: s for t in tgt for s in src}
+            pred[:] = [st.get(n, n) for sub_pred in pred for n in sub_pred]
+        return pred
+
     def forward(self, feed_dict, *, segSize=None):
         # training
         if segSize is None:
@@ -44,8 +74,8 @@ class SegmentationModule(SegmentationModuleBase):
         # inference
         else:
             pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
-
-            # TODO merge similar categories to get only 25 type of scenes. (currently 150)
+            _, pred = torch.max(pred, dim=0)
+            pred = self.merge_segments(pred)
             return pred
 
 
@@ -234,3 +264,26 @@ class PPMDeepsup(nn.Module):
         ds = nn.functional.log_softmax(ds, dim=1)
 
         return x, ds
+
+
+
+csv = pd.read_csv('data/object25_info.csv', header=None)
+source = csv.values[:, 0]-1
+target = csv.values[:, 1]
+for i,d in enumerate(target):
+    if type(d) == str:
+        target[i] = np.array([int(x) for x in d.split(' ')])
+    else:
+        target[i] = np.array([])
+
+target = target-1
+z = [[1, 1, 2, 3],
+     [1, 1, 7, 3],
+     [1, 9, 5, 3]]
+pred = torch.IntTensor(z)
+for i, src in enumerate(source):
+    tgt = target[i]
+    print(src, tgt)
+    st = {t: s for t in tgt for s in [src]}
+    pred = [st.get(n, n) for sub_pred in pred for n in sub_pred]
+

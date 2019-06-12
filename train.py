@@ -173,6 +173,7 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
             object_outputs = object_net(object_inputs, segSize=seg_size)
 
 
+
             coarse_loss_ = coarse_loss(coarse_outputs, y_d)
             edge_loss_ = edge_loss(edge_outputs, y_e.float())
 
