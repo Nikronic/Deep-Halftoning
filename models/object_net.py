@@ -30,30 +30,22 @@ class SegmentationModule(SegmentationModuleBase):
         self.deep_sup_scale = deep_sup_scale
 
     @staticmethod
-    def merge_segments(pred, csv_path=None):
+    def merge_segments(pred, replacement_dic=None):
         """
         Merge different segments into one based on a .csv file containing source and target indexes.
 
         :param pred: The probability matrix of assignment of classes to pixels of size (batch, classes, height, width)
-        :param csv_path: A csv file to obtain source and target indexes
+        :param replacement_dic: A dictionary containing source and target indexes
         :return: A class representation of the input matrix using Max function of size (batch, height, width)
         """
-        if csv_path is None:
-            csv_path = 'data/object25_info.csv'
-        csv = pd.read_csv(csv_path, header=None)
-        source = csv.values[:, 0] - 1
-        target = csv.values[:, 1]
-        for i, d in enumerate(target):
-            if type(d) == str:
-                target[i] = np.array([int(x) for x in d.split(' ')])
-            else:
-                target[i] = np.array([])
-        target = target - 1
-
-        for i, src in enumerate(source):
-            tgt = target[i]
-            st = {t: s for t in tgt for s in src}
-            pred[:] = [st.get(n, n) for sub_pred in pred for n in sub_pred]
+        if replacement_dic is None:
+            replacement_dic = {42: 0, 25: 1, 48: 1, 84: 1, 72: 4, 10: 6, 51: 6, 53: 6, 57: 7, 44: 10, 35: 10, 29: 13,
+                               46: 13, 58: 14, 19: 15, 30: 15, 33: 15, 45: 15, 56: 15, 64: 15, 69: 15, 70: 15, 75: 15,
+                               99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20, 102: 20,
+                               116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36, 100: 43,
+                               123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
+                               141: 74, 143: 74}
+            pred = [replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
         return pred
 
     def forward(self, feed_dict, *, segSize=None):
@@ -74,6 +66,7 @@ class SegmentationModule(SegmentationModuleBase):
         # inference
         else:
             pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
+            # TODO merge probabilities
             _, pred = torch.max(pred, dim=0)
             pred = self.merge_segments(pred)
             return pred
@@ -264,26 +257,3 @@ class PPMDeepsup(nn.Module):
         ds = nn.functional.log_softmax(ds, dim=1)
 
         return x, ds
-
-
-
-csv = pd.read_csv('data/object25_info.csv', header=None)
-source = csv.values[:, 0]-1
-target = csv.values[:, 1]
-for i,d in enumerate(target):
-    if type(d) == str:
-        target[i] = np.array([int(x) for x in d.split(' ')])
-    else:
-        target[i] = np.array([])
-
-target = target-1
-z = [[1, 1, 2, 3],
-     [1, 1, 7, 3],
-     [1, 9, 5, 3]]
-pred = torch.IntTensor(z)
-for i, src in enumerate(source):
-    tgt = target[i]
-    print(src, tgt)
-    st = {t: s for t in tgt for s in [src]}
-    pred = [st.get(n, n) for sub_pred in pred for n in sub_pred]
-
