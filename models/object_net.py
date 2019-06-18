@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision
-from . import resnet
+from models import resnet
 from lib.nn import SynchronizedBatchNorm2d
 
 import pandas as pd
@@ -33,12 +33,11 @@ class SegmentationModule(SegmentationModuleBase):
                                 99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20,
                                 102: 20, 116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36,
                                 100: 43, 123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
-                                141: 74, 143: 74}
-        self.final_class_indices = torch.IntTensor(np.array(
+                                141: 74, 143: 74} # values obtained by expert visually.
+        self.final_class_indices = torch.LongTensor(np.array(
             pd.read_csv('data/object25_info.csv', header=None).values[:, 0], dtype=np.int16))
 
-    @staticmethod
-    def merge_segments(pred):
+    def merge_segments(self, pred):
         """
         Merge different segments into one based on a .csv file containing source and target indexes.
 
@@ -46,13 +45,12 @@ class SegmentationModule(SegmentationModuleBase):
 
         :return: A class representation of the input matrix using Max function of size (batch, height, width)
         """
-        if replacement_dic is not None:
-            pred = [replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
+        if self.replacement_dic is not None:
+            pred = [self.replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
         raise NotImplementedError('Function not implemented - wrong logic')
         return pred
 
-    @staticmethod
-    def merge_probs(pred):
+    def merge_probs(self, pred):
         """
         Reduce classes for each pixel to 25 by summing the probabilities of combined classes.
 
@@ -63,9 +61,15 @@ class SegmentationModule(SegmentationModuleBase):
         # use mask to sum all combinations then zero anything else our 25 classes
         batch_size, channel_size, height, width = tuple(pred.size())
         mapping = torch.arange(0, 150)
-        for item in replacement_dic:
-            mapping[item] = replacement_dic[item]
+        for item in self.replacement_dic:
+            mapping[item] = self.replacement_dic[item]
         pred = torch.zeros(batch_size, channel_size, height, width).scatter_add(1, mapping, pred)
+
+        # first accumulate all other probs in arbitrary index 149 then make it zero.
+        de_mask = torch.arange(0, 150).scatter_(0, self.final_class_indices, 0.).nonzero().view((125,))
+        mask = torch.arange(0, 150).scatter_(0, de_mask, 149.)
+        pred = torch.zeros(batch_size, channel_size, height, width).scatter_add(1, mask, pred)
+        pred[:, 149, :, :] = 0
         return pred
 
     def forward(self, feed_dict, *, segSize=None):
@@ -87,7 +91,6 @@ class SegmentationModule(SegmentationModuleBase):
         else:
             pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
             pred = self.merge_probs(pred)
-            # TODO merge probabilities
             _, pred = torch.max(pred, dim=0)
             return pred
 
@@ -280,10 +283,3 @@ class PPMDeepsup(nn.Module):
 
 
 # %% tests
-replacement_dic = {42: 0, 25: 1, 48: 1, 84: 1, 72: 4, 10: 6, 51: 6, 53: 6, 57: 7, 44: 10, 35: 10, 29: 13,
-                   46: 13, 58: 14, 19: 15, 30: 15, 33: 15, 45: 15, 56: 15, 64: 15, 69: 15, 70: 15, 75: 15,
-                   99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20, 102: 20,
-                   116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36, 100: 43,
-                   123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
-                   141: 74, 143: 74}
-
