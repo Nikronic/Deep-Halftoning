@@ -28,24 +28,27 @@ class SegmentationModule(SegmentationModuleBase):
         self.decoder = net_dec
         self.crit = crit
         self.deep_sup_scale = deep_sup_scale
+        self.replacement_dic = {42: 0, 25: 1, 48: 1, 84: 1, 72: 4, 10: 6, 51: 6, 53: 6, 57: 7, 44: 10, 35: 10, 29: 13,
+                                46: 13, 58: 14, 19: 15, 30: 15, 33: 15, 45: 15, 56: 15, 64: 15, 69: 15, 70: 15, 75: 15,
+                                99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20,
+                                102: 20, 116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36,
+                                100: 43, 123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
+                                141: 74, 143: 74}
+        self.final_class_indices = torch.IntTensor(np.array(
+            pd.read_csv('data/object25_info.csv', header=None).values[:, 0], dtype=np.int16))
 
     @staticmethod
-    def merge_segments(pred, replacement_dic=None):
+    def merge_segments(pred):
         """
         Merge different segments into one based on a .csv file containing source and target indexes.
 
         :param pred: The probability matrix of assignment of classes to pixels of size (batch, classes, height, width)
-        :param replacement_dic: A dictionary containing source and target indexes
+
         :return: A class representation of the input matrix using Max function of size (batch, height, width)
         """
-        if replacement_dic is None:
-            replacement_dic = {42: 0, 25: 1, 48: 1, 84: 1, 72: 4, 10: 6, 51: 6, 53: 6, 57: 7, 44: 10, 35: 10, 29: 13,
-                               46: 13, 58: 14, 19: 15, 30: 15, 33: 15, 45: 15, 56: 15, 64: 15, 69: 15, 70: 15, 75: 15,
-                               99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20, 102: 20,
-                               116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36, 100: 43,
-                               123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
-                               141: 74, 143: 74}
+        if replacement_dic is not None:
             pred = [replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
+        raise NotImplementedError('Function not implemented - wrong logic')
         return pred
 
     @staticmethod
@@ -59,11 +62,11 @@ class SegmentationModule(SegmentationModuleBase):
 
         # use mask to sum all combinations then zero anything else our 25 classes
         batch_size, channel_size, height, width = tuple(pred.size())
-        mapping = torch.LongTensor(np.arange(0, channel_size))
-        # TODO fill mapping
+        mapping = torch.arange(0, 150)
+        for item in replacement_dic:
+            mapping[item] = replacement_dic[item]
         pred = torch.zeros(batch_size, channel_size, height, width).scatter_add(1, mapping, pred)
         return pred
-
 
     def forward(self, feed_dict, *, segSize=None):
         # training
@@ -274,3 +277,13 @@ class PPMDeepsup(nn.Module):
         ds = nn.functional.log_softmax(ds, dim=1)
 
         return x, ds
+
+
+# %% tests
+replacement_dic = {42: 0, 25: 1, 48: 1, 84: 1, 72: 4, 10: 6, 51: 6, 53: 6, 57: 7, 44: 10, 35: 10, 29: 13,
+                   46: 13, 58: 14, 19: 15, 30: 15, 33: 15, 45: 15, 56: 15, 64: 15, 69: 15, 70: 15, 75: 15,
+                   99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20, 102: 20,
+                   116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36, 100: 43,
+                   123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
+                   141: 74, 143: 74}
+
