@@ -48,6 +48,23 @@ class SegmentationModule(SegmentationModuleBase):
             pred = [replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
         return pred
 
+    @staticmethod
+    def merge_probs(pred):
+        """
+        Reduce classes for each pixel to 25 by summing the probabilities of combined classes.
+
+        :param pred: probability of assigning each pixel to 150 available classes.
+        :return: A new tensor with same height and width but reduced channel size from 150 to 25
+        """
+
+        # use mask to sum all combinations then zero anything else our 25 classes
+        batch_size, channel_size, height, width = tuple(pred.size())
+        mapping = torch.LongTensor(np.arange(0, channel_size))
+        # TODO fill mapping
+        pred = torch.zeros(batch_size, channel_size, height, width).scatter_add(1, mapping, pred)
+        return pred
+
+
     def forward(self, feed_dict, *, segSize=None):
         # training
         if segSize is None:
@@ -66,9 +83,9 @@ class SegmentationModule(SegmentationModuleBase):
         # inference
         else:
             pred = self.decoder(self.encoder(feed_dict['img_data'], return_feature_maps=True), segSize=segSize)
+            pred = self.merge_probs(pred)
             # TODO merge probabilities
             _, pred = torch.max(pred, dim=0)
-            pred = self.merge_segments(pred)
             return pred
 
 
