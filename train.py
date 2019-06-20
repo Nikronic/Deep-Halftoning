@@ -139,9 +139,9 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
     disc_two = network['disc2'].train()
 
     # Losses
-    coarse_loss = criterion['coarse']
-    edge_loss = criterion['edge']
-    details_loss = criterion['details']
+    coarse_crit = criterion['coarse']
+    edge_crit = criterion['edge']
+    details_crit = criterion['details']
 
     # Optims
     coarse_optim = optimizer['coarse']
@@ -172,20 +172,20 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
             seg_size = (seg_size[2], seg_size[3])
             object_outputs = object_net(object_inputs, segSize=seg_size)
 
+            # TODO contiune tasks
 
+            coarse_loss = coarse_crit(coarse_outputs, y_d)
+            edge_loss = edge_crit(edge_outputs, y_e.float())
 
-            coarse_loss_ = coarse_loss(coarse_outputs, y_d)
-            edge_loss_ = edge_loss(edge_outputs, y_e.float())
-
-            coarse_loss_.backward()
-            edge_loss_.backward()
+            coarse_loss.backward()
+            edge_loss.backward()
 
             coarse_optim.step()
             edge_optim.step()
 
-            running_loss += coarse_loss_.item() + edge_loss_.item()
-            print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss_.item(),
-                  'edge_loss: ', edge_loss_, 'details_loss: ', details_loss_, 'sum of losses:', running_loss)
+            running_loss += coarse_loss.item() + edge_loss.item()
+            print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss.item(),
+                  'edge_loss: ', edge_loss, 'details_loss: ', details_loss, 'sum of losses:', running_loss)
     print('Finished Training')
 
 
@@ -242,13 +242,13 @@ def show_batch_image(image_batch):
 # %% initialize network, loss and optimizer
 
 # CoarseNet
-coarse_loss = CoarseLoss(w1=50, w2=1).to(device)
+coarse_crit = CoarseLoss(w1=50, w2=1).to(device)
 coarse_net = CoarseNet().to(device)
 coarse_optim = optim.Adam(coarse_net.parameters(), lr=args.lr)
 coarse_net.apply(init_weights)
 
 # EdgeNet
-edge_loss = EdgeLoss().to(device)
+edge_crit = EdgeLoss().to(device)
 edge_net = EdgeNet().to(device)
 edge_optim = optim.Adam(edge_net.parameters(), lr=args.lr)
 edge_net.apply(init_weights)
@@ -269,7 +269,7 @@ object_net = SegmentationModule(net_encoder, net_decoder, None)
 object_net.cuda()
 
 # DetailsNet
-details_loss = DetailsLoss().to(device)
+details_crit = DetailsLoss().to(device)
 random_noise_adder = RandomNoise(p=0, mean=0, std=1)  # add noise to input of generator (DetailsNet)
 details_net = DetailsNet().to(device)
 disc_one = DiscriminatorOne().to(device)
@@ -296,9 +296,9 @@ models = {
 }
 
 losses = {
-    'coarse': coarse_loss,
-    'edge': edge_loss,
-    'details': details_loss
+    'coarse': coarse_crit,
+    'edge': edge_crit,
+    'details': details_crit
 }
 
 optims = {
