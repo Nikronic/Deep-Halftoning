@@ -33,7 +33,7 @@ class SegmentationModule(SegmentationModuleBase):
                                 99: 15, 110: 15, 34: 16, 68: 16, 8: 17, 66: 17, 101: 18, 80: 20, 83: 20, 90: 20,
                                 102: 20, 116: 20, 127: 20, 21: 26, 60: 26, 109: 26, 128: 26, 140: 26, 82: 36, 87: 36,
                                 100: 43, 123: 43, 142: 43, 144: 43, 59: 53, 96: 53, 121: 53, 37: 65, 78: 74, 89: 74,
-                                141: 74, 143: 74} # values obtained by expert visually.
+                                141: 74, 143: 74}  # values obtained by expert(myself! OK) visually.
         self.final_class_indices = torch.LongTensor(np.array(
             pd.read_csv('data/object25_info.csv', header=None).values[:, 0], dtype=np.int16))
 
@@ -47,7 +47,7 @@ class SegmentationModule(SegmentationModuleBase):
         """
         if self.replacement_dic is not None:
             pred = [self.replacement_dic.get(n, n) for sub_pred in pred for n in sub_pred]
-        raise NotImplementedError('Function not implemented - wrong logic')
+        raise NotImplementedError('Function not implemented - logically wrong')
         return pred
 
     def merge_probs(self, pred):
@@ -70,6 +70,8 @@ class SegmentationModule(SegmentationModuleBase):
         mask = torch.arange(0, 150).scatter_(0, de_mask, 149.)
         pred = torch.zeros(batch_size, channel_size, height, width).scatter_add(1, mask, pred)
         pred[:, 149, :, :] = 0
+        # now we shrink channel size to 25 by moving values to 0 to 24 indices
+        pred = pred[:, self.final_class_indices, :, :]
         return pred
 
     def forward(self, feed_dict, *, segSize=None):
@@ -283,3 +285,5 @@ class PPMDeepsup(nn.Module):
 
 
 # %% tests
+
+
