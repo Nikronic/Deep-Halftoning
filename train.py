@@ -172,7 +172,16 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
             seg_size = (seg_size[2], seg_size[3])
             object_outputs = object_net(object_inputs, segSize=seg_size)
 
-            # TODO contiune tasks
+            # concatenation of input(halftone):h, coarse_output:a, object_output:c, and edge_output:e. I name it HACE to
+            # represent each tensor respectively.
+            hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
+            details_outputs = details_net(hace_outputs)
+
+            # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
+            # represent each tensor respectively.
+            hod_outputs = torch.cat((x, y_d, details_outputs), dim=1)
+
+            # TODO continue tasks
 
             coarse_loss = coarse_crit(coarse_outputs, y_d)
             edge_loss = edge_crit(edge_outputs, y_e.float())
@@ -311,3 +320,6 @@ optims = {
 
 
 train_model(network=models, data_loader=train_loader, optimizer=optims, criterion=losses, epochs=args.es)
+
+
+# %% test
