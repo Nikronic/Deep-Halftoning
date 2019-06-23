@@ -118,15 +118,13 @@ test_loader = DataLoader(dataset=test_dataset,
 
 
 # %% train model
-def train_model(network, data_loader, optimizer, lr_schedulers, criterion, epochs=2):
+def train_model(network, data_loader, optimizer, criterion):
     """
     Train model
 
     :param network: Parameters of defined neural networks
     :param data_loader: A data loader object defined on train data set
-    :param epochs: Number of epochs to train model
     :param optimizer: Optimizer to train network
-    :param lr_schedulers: Learning schedulers to decay its rate every epoch by 0.9
     :param criterion: The loss function to minimize by optimizer
     :return: None
     """
@@ -151,59 +149,49 @@ def train_model(network, data_loader, optimizer, lr_schedulers, criterion, epoch
     disc_one_optim = optimizer['disc1']
     disc_two_optim = optimizer['disc2']
 
-    # LR_schedulers
-    coarse_lr_scheduler = lr_schedulers['coarse']
-    edge_lr_scheduler = lr_schedulers['edge']
-    details_lr_scheduler = lr_schedulers['details']
-    disc_one_lr_scheduler = lr_schedulers['disc1']
-    disc_two_lr_scheduler = lr_schedulers['disc2']
+    running_loss = 0.0
+    for i, data in enumerate(data_loader, 0):
+        x = data['x']
+        y_d = data['y_descreen']
+        y_e = data['y_edge']
 
-    for epoch in range(epochs):
+        x = x.to(device)
+        y_d = y_d.to(device)
 
-        running_loss = 0.0
-        for i, data in enumerate(data_loader, 0):
-            x = data['x']
-            y_d = data['y_descreen']
-            y_e = data['y_edge']
+        coarse_optim.zero_grad()
+        edge_optim.zero_grad()
 
-            x = x.to(device)
-            y_d = y_d.to(device)
+        coarse_outputs = coarse_net(x)
+        edge_outputs = edge_net(x)
+        # we have to pass images as dictionary if we do not want to change source code of ObjectNet
+        object_inputs = object_net({'img_data': coarse_outputs})
+        seg_size = (coarse_outputs.size())
+        seg_size = (seg_size[2], seg_size[3])
+        object_outputs = object_net(object_inputs, segSize=seg_size)
 
-            coarse_optim.zero_grad()
-            edge_optim.zero_grad()
+        # concatenation of input(halftone):h, coarse_output:a, object_output:c, and edge_output:e. I name it HACE to
+        # represent each tensor respectively.
+        hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
+        details_outputs = details_net(hace_outputs)
 
-            coarse_outputs = coarse_net(x)
-            edge_outputs = edge_net(x)
-            # we have to pass images as dictionary if we do not want to change source code of ObjectNet
-            object_inputs = object_net({'img_data': coarse_outputs})
-            seg_size = (coarse_outputs.size())
-            seg_size = (seg_size[2], seg_size[3])
-            object_outputs = object_net(object_inputs, segSize=seg_size)
+        # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
+        # represent each tensor respectively.
+        hod_outputs = torch.cat((x, y_d, details_outputs), dim=1)
 
-            # concatenation of input(halftone):h, coarse_output:a, object_output:c, and edge_output:e. I name it HACE to
-            # represent each tensor respectively.
-            hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
-            details_outputs = details_net(hace_outputs)
+        # TODO continue tasks
 
-            # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
-            # represent each tensor respectively.
-            hod_outputs = torch.cat((x, y_d, details_outputs), dim=1)
+        coarse_loss = coarse_crit(coarse_outputs, y_d)
+        edge_loss = edge_crit(edge_outputs, y_e.float())
 
-            # TODO continue tasks
+        coarse_loss.backward()
+        edge_loss.backward()
 
-            coarse_loss = coarse_crit(coarse_outputs, y_d)
-            edge_loss = edge_crit(edge_outputs, y_e.float())
+        coarse_optim.step()
+        edge_optim.step()
 
-            coarse_loss.backward()
-            edge_loss.backward()
-
-            coarse_optim.step()
-            edge_optim.step()
-
-            running_loss += coarse_loss.item() + edge_loss.item()
-            print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss.item(),
-                  'edge_loss: ', edge_loss, 'details_loss: ', details_loss, 'sum of losses:', running_loss)
-    print('Finished Training')
+        running_loss += coarse_loss.item() + edge_loss.item()
+        print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss.item(),
+              'edge_loss: ', edge_loss, 'details_loss: ', details_loss, 'sum of losses:', running_loss)
 
 
 # %% test
@@ -331,16 +319,17 @@ optims = {
     'disc2': disc_two_optim
 }
 
-lr_schedulers = {
-    'coarse': coarse_lr_scheduler,
-    'edge': edge_lr_scheduler,
-    'details': details_lr_scheduler,
-    'disc1': disc_one_lr_scheduler,
-    'disc2': disc_two_lr_scheduler
-}
 
+for epoch in range(args.es):
+    coarse_lr_scheduler.step()
+    edge_lr_scheduler.step()
+    details_lr_scheduler.step()
+    disc_one_lr_scheduler.step()
+    disc_two_lr_scheduler.step()
+    train_model(network=models, data_loader=train_loader, optimizer=optims, criterion=losses)
+    print('*************** Training Finished ***************')
+    # TODO add validation method
 
-train_model(network=models, data_loader=train_loader, optimizer=optims, criterion=losses, epochs=args.es)
 
 
 # %% test
