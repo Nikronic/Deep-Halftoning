@@ -118,7 +118,7 @@ test_loader = DataLoader(dataset=test_dataset,
 
 
 # %% train model
-def train_model(network, data_loader, optimizer, criterion, epochs=2):
+def train_model(network, data_loader, optimizer, lr_schedulers, criterion, epochs=2):
     """
     Train model
 
@@ -126,6 +126,7 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
     :param data_loader: A data loader object defined on train data set
     :param epochs: Number of epochs to train model
     :param optimizer: Optimizer to train network
+    :param lr_schedulers: Learning schedulers to decay its rate every epoch by 0.9
     :param criterion: The loss function to minimize by optimizer
     :return: None
     """
@@ -149,6 +150,13 @@ def train_model(network, data_loader, optimizer, criterion, epochs=2):
     details_optim = optimizer['details']
     disc_one_optim = optimizer['disc1']
     disc_two_optim = optimizer['disc2']
+
+    # LR_schedulers
+    coarse_lr_scheduler = lr_schedulers['coarse']
+    edge_lr_scheduler = lr_schedulers['edge']
+    details_lr_scheduler = lr_schedulers['details']
+    disc_one_lr_scheduler = lr_schedulers['disc1']
+    disc_two_lr_scheduler = lr_schedulers['disc2']
 
     for epoch in range(epochs):
 
@@ -254,12 +262,14 @@ def show_batch_image(image_batch):
 coarse_crit = CoarseLoss(w1=50, w2=1).to(device)
 coarse_net = CoarseNet().to(device)
 coarse_optim = optim.Adam(coarse_net.parameters(), lr=args.lr)
+coarse_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=coarse_optim, step_size=1, gamma=0.9)
 coarse_net.apply(init_weights)
 
 # EdgeNet
 edge_crit = EdgeLoss().to(device)
 edge_net = EdgeNet().to(device)
 edge_optim = optim.Adam(edge_net.parameters(), lr=args.lr)
+edge_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=edge_optim, step_size=1, gamma=0.9)
 edge_net.apply(init_weights)
 
 # ObjectNet
@@ -287,6 +297,9 @@ disc_two = DiscriminatorTwo().to(device)
 details_optim = optim.Adam(details_net.parameters(), lr=args.lr)
 disc_one_optim = optim.Adam(disc_one.parameters(), lr=args.lr)
 disc_two_optim = optim.Adam(disc_two.parameters(), lr=args.lr)
+details_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=details_optim, step_size=1, gamma=0.9)
+disc_one_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_one_optim, step_size=1, gamma=0.9)
+disc_two_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_two_optim, step_size=1, gamma=0.9)
 
 details_net.apply(init_weights)
 disc_one.apply(init_weights)
@@ -316,6 +329,14 @@ optims = {
     'details': details_optim,
     'disc1': disc_one_optim,
     'disc2': disc_two_optim
+}
+
+lr_schedulers = {
+    'coarse': coarse_lr_scheduler,
+    'edge': edge_lr_scheduler,
+    'details': details_lr_scheduler,
+    'disc1': disc_one_lr_scheduler,
+    'disc2': disc_two_lr_scheduler
 }
 
 
