@@ -121,21 +121,22 @@ class DetailsLoss(nn.Module):
     def forward(self, y, y_pred):
         """
 
-        :param y: Ground truth tensor
-        :param y_pred: Estimated ground truth
+        :param y: Ground truth tensor which is the concatenation of (x, coarse, object, edge)
+        :param y_pred: Estimated prediction which is a dictionary of (details_outputs, details_edges)
         :return: A scalar number
         """
 
-        # TODO y_pred and y are concatenated latent vector, so first we must extract different features.
+        x, coarse_outputs, object_outputs, edge_outputs = y.split((3, 3, 25, 1), dim=1)
+        details_outputs, details_edges, y_e = y_pred['d_o'], y_pred['d_e'], y_pred['y_e']
 
-        y_vgg = self.vgg16_bn(y)
-        y_pred_vgg = self.vgg16_bn(y_pred)
-        coarse_loss = self.l1_loss(y, y_pred)
-        edge_loss = self.BCE_loss(y, y_pred)
+        y_vgg = self.vgg16_bn(x)
+        details_outputs_vgg = self.vgg16_bn(details_outputs)
+        coarse_loss = self.l1_loss(x, details_outputs)
+        edge_loss = self.BCE_loss(y_e, details_edges)
         patch_loss = np.sum(
             [self.MSE_loss(self.gram_matrix(self.get_patch(ly)), self.gram_matrix(self.get_patch(lp)))
-             for ly, lp in zip(y_vgg, y_pred_vgg)])
-        adversarial_loss = self.MSE_loss(y, y_pred)
+             for ly, lp in zip(y_vgg, details_outputs_vgg)])
+        adversarial_loss = self.MSE_loss(x, details_outputs)
 
         loss = self.w1 * coarse_loss + self.w2 * edge_loss + self.w3 * patch_loss + self.w4 * adversarial_loss
         return loss

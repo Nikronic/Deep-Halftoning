@@ -189,6 +189,8 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
             # represent each tensor respectively.
             hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
             details_outputs = details_net(hace_outputs)
+            details_edges = edge_net(details_outputs)
+            details_outputs_edges_dic = {'d_o': details_outputs, 'd_e': details_edges, 'y_e': y_e}
 
             # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
             # represent each tensor respectively.
@@ -198,7 +200,7 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
 
             coarse_loss = coarse_crit(coarse_outputs, y_d)
             edge_loss = edge_crit(edge_outputs, y_e.float())
-            details_loss = details_crit(hace_outputs, details_outputs)
+            details_loss = details_crit(hace_outputs, details_outputs_edges_dic)
 
             coarse_crit.backward()
             edge_crit.backward()
