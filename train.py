@@ -171,6 +171,9 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
             y_d = data['y_descreen']
             y_e = data['y_edge']
 
+            valid = torch.Tensor(x.size()).fill_(1.0)
+            fake = torch.Tensor(x.size()).fill_(0.0)
+
             x = x.to(device)
             y_d = y_d.to(device)
 
@@ -185,26 +188,31 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
             seg_size = (seg_size[2], seg_size[3])
             object_outputs = object_net(object_inputs, segSize=seg_size)
 
+            # Train generator: DetailsNet
+            details_optim.zero_grad()
+
             # concatenation of input(halftone):h, coarse_output:a, object_output:c, and edge_output:e. I name it HACE to
             # represent each tensor respectively.
             hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
             details_outputs = details_net(hace_outputs)
+            details_edges = edge_net(details_outputs)
+            details_outputs_edges_dic = {'d_o': details_outputs, 'd_e': details_edges, 'y_e': y_e}
 
             # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
             # represent each tensor respectively.
             hod_outputs = torch.cat((x, y_d, details_outputs), dim=1)
 
-            # TODO continue tasks
-
             coarse_loss = coarse_crit(coarse_outputs, y_d)
             edge_loss = edge_crit(edge_outputs, y_e.float())
-            details_loss = details_crit(hace_outputs, details_outputs)
+            details_loss = details_crit(hace_outputs, details_outputs_edges_dic)
 
             coarse_crit.backward()
             edge_crit.backward()
+            details_loss.backward()
 
             coarse_optim.step()
             edge_optim.step()
+            details_optim.step()
 
             running_loss += coarse_loss.item() + edge_loss.item()
             print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss.item(),
