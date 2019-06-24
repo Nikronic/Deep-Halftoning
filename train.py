@@ -25,7 +25,6 @@ from distutils.version import LooseVersion
 # Numerical libs
 import numpy as np
 import torch
-import torch.nn as nn
 from scipy.io import loadmat
 # Our libs
 
@@ -199,9 +198,10 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
 
             coarse_loss = coarse_crit(coarse_outputs, y_d)
             edge_loss = edge_crit(edge_outputs, y_e.float())
+            details_loss = details_crit(hace_outputs, details_outputs)
 
-            coarse_loss.backward()
-            edge_loss.backward()
+            coarse_crit.backward()
+            edge_crit.backward()
 
             coarse_optim.step()
             edge_optim.step()
