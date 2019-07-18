@@ -52,11 +52,11 @@ def init_weights(m):
     """
 
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-        torch.nn.init.kaiming_normal_(m.weight, mode='fan_out')
-        nn.init.constant_(m.bias, 0)
+        torch.nn.init.kaiming_normal_(m.weight.data, mode='fan_out')
+        nn.init.constant_(m.bias.data, 0)
     elif isinstance(m, nn.BatchNorm2d):  # reference: https://github.com/pytorch/pytorch/issues/12259
-        nn.init.constant_(m.weight, 1)
-        nn.init.constant_(m.bias, 0)
+        nn.init.constant_(m.weight.data, 1)
+        nn.init.constant_(m.bias.data, 0)
 
 
 # %% simulating argparse module
@@ -69,6 +69,7 @@ class args:
     nw = 4
     es = 20
     lr = 0.0001
+    lr_decay = 0.9
     cudnn = 0
     pm = 0
 
@@ -93,7 +94,7 @@ custom_transforms = Compose([
     RandomHorizontalFlip(p=0.5),
     ToTensor(),
     Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    RandomNoise(p=0.5, mean=0, std=0.1)])
+    RandomNoise(p=0.5, mean=0, std=0.0007)])
 
 train_dataset = PlacesDataset(txt_path=args.txt,
                               img_dir=args.img,
@@ -107,10 +108,11 @@ train_loader = DataLoader(dataset=train_dataset,
 
 test_dataset = PlacesDataset(txt_path=args.txt_t,
                              img_dir=args.img_t,
-                             transform=ToTensor())
+                             transform=ToTensor(),
+                             test=True)
 
 test_loader = DataLoader(dataset=test_dataset,
-                         batch_size=128,
+                         batch_size=args.bs,
                          shuffle=False,
                          num_workers=args.nw,
                          pin_memory=False)
@@ -165,14 +167,13 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
         disc_one_lr_scheduler.step()
         disc_two_lr_scheduler.step()
 
-        running_loss = 0.0
+        running_loss_g = 0.0
+        running_loss_disc_one = 0.0
+        running_loss_disc_two = 0.0
         for i, data in enumerate(data_loader, 0):
             x = data['x']
             y_d = data['y_descreen']
             y_e = data['y_edge']
-
-            valid = torch.Tensor(x.size()).fill_(1.0)
-            fake = torch.Tensor(x.size()).fill_(0.0)
 
             x = x.to(device)
             y_d = y_d.to(device)
@@ -188,19 +189,52 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
             seg_size = (seg_size[2], seg_size[3])
             object_outputs = object_net(object_inputs, segSize=seg_size)
 
-            # Train generator: DetailsNet
-            details_optim.zero_grad()
-
             # concatenation of input(halftone):h, coarse_output:a, object_output:c, and edge_output:e. I name it HACE to
-            # represent each tensor respectively.
+            # represent each tensor respectively. (feed into details_net)
             hace_outputs = torch.cat((x, coarse_outputs, object_outputs, edge_outputs), dim=1)
             details_outputs = details_net(hace_outputs)
+            details_outputs = details_outputs + coarse_outputs  # Do not use += (inplace operation)
             details_edges = edge_net(details_outputs)
             details_outputs_edges_dic = {'d_o': details_outputs, 'd_e': details_edges, 'y_e': y_e}
 
+            # Train generator: DetailsNet
+            details_optim.zero_grad()
+            disc_one_out = disc_one(details_outputs)
+            valid = torch.ones(disc_one_out.size()).to(device)
+            g_loss = criterion(disc_one_out, valid)  # TODO replace details_crit
+            g_loss.backward(retain_graph=True)
+            details_optim.step()
+
+            # train discriminator one
+            disc_one_optim.zero_grad()
+            ground_truth_residual = y_d - coarse_outputs
+            disc_one_out = disc_one(ground_truth_residual)
+            valid = torch.ones(disc_one_out.size()).to(device)
+            real_loss = criterion(disc_one_out, valid)  # TODO replace disc_loss
+            disc_one_out = disc_one(details_outputs)
+            fake = torch.zeros(disc_one_out.size()).to(device)
+            fake_loss = criterion(disc_one_out, fake)  # TODO replace disc_loss
+            disc_one_loss = (real_loss + fake_loss) / 2
+            disc_one_loss.backward(retain_graph=True)
+            disc_one_optim.step()
+
             # concatenation of input(halftone):h, ground_truth(y_d):o, and details_output:d. I name it HOD to
-            # represent each tensor respectively.
+            # represent each tensor respectively. (feed into disc_two)
             hod_outputs = torch.cat((x, y_d, details_outputs), dim=1)
+
+            # train discriminator two
+            disc_two_optim.zero_grad()
+
+            object_output = torch.Tensor().to(device)
+            disc_two_out = disc_two(torch.cat((y_d, object_output), dim=1))
+            valid = torch.ones(disc_two_out.size()).to(device)
+            real_loss = criterion(disc_two_out, valid)  # TODO replace disc_loss
+            disc_two_out = disc_two(torch.cat((details_outputs, object_output), dim=1))
+            fake = torch.zeros(disc_two_out.size()).to(device)
+            fake_loss = criterion(disc_two_out, fake)  # TODO replace disc_loss
+            disc_two_loss = (real_loss + fake_loss) / 2
+            disc_two_loss.backward()
+            disc_two_optim.step()
 
             coarse_loss = coarse_crit(coarse_outputs, y_d)
             edge_loss = edge_crit(edge_outputs, y_e.float())
@@ -212,7 +246,7 @@ def train_model(network, data_loader, optimizer, lr_scheduler, criterion, epochs
 
             coarse_optim.step()
             edge_optim.step()
-            details_optim.step()
+
 
             running_loss += coarse_loss.item() + edge_loss.item()
             print(epoch + 1, ',', i + 1, 'coarse_loss: ', coarse_loss.item(),
@@ -275,14 +309,14 @@ def show_batch_image(image_batch):
 coarse_crit = CoarseLoss(w1=50, w2=1).to(device)
 coarse_net = CoarseNet().to(device)
 coarse_optim = optim.Adam(coarse_net.parameters(), lr=args.lr)
-coarse_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=coarse_optim, step_size=1, gamma=0.9)
+coarse_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=coarse_optim, step_size=1, gamma=args.lr_decay)
 coarse_net.apply(init_weights)
 
 # EdgeNet
 edge_crit = EdgeLoss().to(device)
 edge_net = EdgeNet().to(device)
 edge_optim = optim.Adam(edge_net.parameters(), lr=args.lr)
-edge_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=edge_optim, step_size=1, gamma=0.9)
+edge_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=edge_optim, step_size=1, gamma=args.lr_decay)
 edge_net.apply(init_weights)
 
 # ObjectNet
@@ -310,9 +344,9 @@ disc_two = DiscriminatorTwo().to(device)
 details_optim = optim.Adam(details_net.parameters(), lr=args.lr)
 disc_one_optim = optim.Adam(disc_one.parameters(), lr=args.lr)
 disc_two_optim = optim.Adam(disc_two.parameters(), lr=args.lr)
-details_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=details_optim, step_size=1, gamma=0.9)
-disc_one_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_one_optim, step_size=1, gamma=0.9)
-disc_two_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_two_optim, step_size=1, gamma=0.9)
+details_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=details_optim, step_size=1, gamma=args.lr_decay)
+disc_one_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_one_optim, step_size=1, gamma=args.lr_decay)
+disc_two_lr_scheduler = optim.lr_scheduler.StepLR(optimizer=disc_two_optim, step_size=1, gamma=args.lr_decay)
 
 details_net.apply(init_weights)
 disc_one.apply(init_weights)
