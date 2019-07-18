@@ -18,13 +18,13 @@ from utils.halftone import generate_halftone
 
 # %% classes
 class PlacesDataset(Dataset):
-    def __init__(self, txt_path='dataset/sub_test/filelist.txt', img_dir='dataset/sub_test/data', transform=None):
+    def __init__(self, txt_path='dataset/sub_test/filelist.txt', img_dir='dataset/sub_test/data', transform=None, test=False):
         """
         Initialize data set as a list of IDs corresponding to each item of data set
         :param img_dir: path to image files as a uncompressed tar archive
         :param txt_path: a text file containing names of all of images line by line
         :param transform: apply some transforms like cropping, rotating, etc on input image
-
+        :param test: is inference time or not
         :return a 3-value dict containing input image (y_descreen) as ground truth, input image X as halftone
         image and edge-map (y_edge) of ground truth image to feed into the network.
         """
@@ -38,9 +38,7 @@ class PlacesDataset(Dataset):
         self.to_pil = ToPILImage()
         self.get_image_selector = True if img_dir.__contains__('tar') else False
         self.tf = tarfile.open(self.img_dir) if self.get_image_selector else None
-
-        # we need to apply a subset of transform to our target images or labels
-        self.transform_gt = Compose(self.transform.transforms[:-1])  # we do not want noise in ground-truth images
+        self.transform_gt = transform if test else Compose(self.transform.transforms[:-1])  # omit noise of ground truth
 
     def get_image_from_tar(self, name):
         """
