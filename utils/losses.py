@@ -129,8 +129,8 @@ class DetailsLoss(nn.Module):
         x, coarse_outputs, object_outputs, edge_outputs = y.split((3, 3, 25, 1), dim=1)
         details_outputs, details_edges, y_e = y_pred['d_o'], y_pred['d_e'], y_pred['y_e']
 
-        y_vgg = self.vgg16_bn(x)
-        details_outputs_vgg = self.vgg16_bn(details_outputs)
+        y_vgg = self.vgg19_bn(x)
+        details_outputs_vgg = self.vgg19_bn(details_outputs)
         coarse_loss = self.l1_loss(x, details_outputs)
         edge_loss = self.BCE_loss(y_e, details_edges)
         patch_loss = np.sum(
