@@ -180,4 +180,24 @@ class Blend(object):
         blend[mask] = halftone[mask]
         return blend
 
+class UnNormalize(object):
+    """
+    Unnormalize an input tensor given the mean and std
+    """
+
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+        return tensor
+
 # %% test
