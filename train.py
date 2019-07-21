@@ -88,11 +88,13 @@ else:
     pin_memory = False
 
 # %% define datasets and their loaders
+# see issue to follow insturctions: https://github.com/Nikronic/Deep-Halftoning/issues/6
 custom_transforms = Compose([
     RandomResizedCrop(size=224, scale=(0.8, 1.2)),
     RandomRotation(degrees=(-30, 30)),
     RandomHorizontalFlip(p=0.5),
     ToTensor(),
+    # creepy images cause: https://discuss.pytorch.org/t/understanding-transform-normalize/21730/18
     Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     RandomNoise(p=0.5, mean=0, std=0.0007)])
 
