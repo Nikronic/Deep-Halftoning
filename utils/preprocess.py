@@ -1,6 +1,6 @@
 from __future__ import print_function, division
 from PIL import Image
-from torchvision.transforms import ToTensor, ToPILImage, Compose
+from torchvision.transforms import ToTensor, ToPILImage, Compose, Normalize
 import random
 
 import numpy as np
@@ -200,4 +200,23 @@ class UnNormalize(object):
             t.mul_(s).add_(m)
         return tensor
 
+
+class UnNormalize_Native(object):
+    """
+    Unnormalize an input tensor given the mean and std
+    """
+
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+
+        return Normalize((-mean / std).tolist(), (1.0 / std).tolist())
 # %% test
