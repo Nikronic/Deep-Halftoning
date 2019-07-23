@@ -201,14 +201,14 @@ class UnNormalize(object):
         return tensor
 
 
-class UnNormalize_Native(object):
+class UnNormalizeNative(object):
     """
     Unnormalize an input tensor given the mean and std
     """
 
     def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
+        self.mean = torch.tensor(mean)
+        self.std = torch.tensor(std)
 
     def __call__(self, tensor):
         """

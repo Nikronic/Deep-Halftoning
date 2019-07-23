@@ -88,15 +88,14 @@ else:
     pin_memory = False
 
 # %% define datasets and their loaders
-# see issue to follow insturctions: https://github.com/Nikronic/Deep-Halftoning/issues/6
 custom_transforms = Compose([
     RandomResizedCrop(size=224, scale=(0.8, 1.2)),
     RandomRotation(degrees=(-30, 30)),
     RandomHorizontalFlip(p=0.5),
     ToTensor(),
     # creepy images cause: https://discuss.pytorch.org/t/understanding-transform-normalize/21730/18
-    Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    RandomNoise(p=0.5, mean=0, std=0.0007)])
+    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    RandomNoise(p=0.5, mean=0, std=0.1)])
 
 train_dataset = PlacesDataset(txt_path=args.txt,
                               img_dir=args.img,
@@ -338,7 +337,7 @@ object_net.cuda()
 
 # DetailsNet
 details_crit = DetailsLoss().to(device)
-random_noise_adder = RandomNoise(p=0, mean=0, std=1)  # add noise to input of generator (DetailsNet)
+random_noise_adder = RandomNoise(p=0, mean=0, std=0.1)  # add noise to input of generator (DetailsNet)
 details_net = DetailsNet().to(device)
 disc_one = DiscriminatorOne().to(device)
 disc_two = DiscriminatorTwo().to(device)
