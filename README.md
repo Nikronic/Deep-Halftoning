@@ -1,19 +1,5 @@
-[![Build Status](https://travis-ci.com/Nikronic/Deep-Halftoning.svg?token=xMUETkmfm77FhW6rupQL&branch=master)](https://travis-ci.com/Nikronic)
-
 # Deep Halftoning
 "Deep Context-Aware Descreening and Rescreening of Halftone Images" paper implementation.
-
-# Brief
-Starting to understand paper divide work into differenet sections and plan for each section.
-
-# Progress
-
-## Overall
-
-## Milestones
-
-## Issues
-
 
 # Reference
 
