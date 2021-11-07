@@ -1,6 +1,9 @@
 # Deep Halftoning
 "Deep Context-Aware Descreening and Rescreening of Halftone Images" paper implementation.
 
+# WIP
+Numbers in paper are not reproducible at the moment.
+
 # Reference
 
 Tae-hoon Kim and Sang Il Park. 2018. Deep Context-Aware Descreening
