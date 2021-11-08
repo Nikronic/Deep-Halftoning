@@ -23,4 +23,6 @@ and Rescreening of Halftone Images. ACM Trans. Graph. 37, 4, Article 48
 (August 2018), 12 pages. [DOI](https://doi.org/10.1145/3197517.3201377)<br>
 
 ## This Implementation
+Nikan Doosti. (2021). Nikronic/Deep-Halftoning: v0.1-Zenodo-pre-alpha (v0.1-Zenodo-pre-alpha). Zenodo. https://doi.org/10.5281/zenodo.5651805
+
 [![DOI](https://zenodo.org/badge/424633120.svg)](https://zenodo.org/badge/latestdoi/424633120)
